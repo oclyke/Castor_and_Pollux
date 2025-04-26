@@ -1,0 +1,69 @@
+{
+  "jobs": [
+    {
+      "description": "",
+      "id": "7f8ee04f-2413-4167-a643-e690a34730c2",
+      "settings": {
+        "bom_format_preset_name": "",
+        "bom_preset_name": "",
+        "description": "",
+        "exclude_dnp": true,
+        "field_delimiter": ",",
+        "fields_group_by": [],
+        "fields_labels": [
+          "#",
+          "Qty",
+          "Reference",
+          "Value",
+          "MPN",
+          "Notes",
+          "Footprint",
+          "Datasheet",
+          "Description",
+          "DNP",
+          "MacroFab MPN",
+          "Rating"
+        ],
+        "fields_ordered": [
+          "${ITEM_NUMBER}",
+          "${QUANTITY}",
+          "Reference",
+          "Value",
+          "MPN",
+          "Notes",
+          "Footprint",
+          "__Datasheet",
+          "__Description",
+          "__DNP",
+          "__MacroFab MPN",
+          "__Rating"
+        ],
+        "filter_string": "",
+        "include_excluded_from_bom": false,
+        "keep_line_breaks": false,
+        "keep_tabs": false,
+        "output_filename": "bom-individual-components.csv",
+        "ref_delimiter": "",
+        "ref_range_delimiter": "",
+        "sort_asc": true,
+        "sort_field": "${ITEM_NUMBER}",
+        "string_delimiter": "\""
+      },
+      "type": "sch_export_bom"
+    }
+  ],
+  "meta": {
+    "version": 1
+  },
+  "outputs": [
+    {
+      "description": "",
+      "id": "59d0f95b-56c7-474f-bd6a-51ad84044935",
+      "only": [],
+      "settings": {
+        "output_path": "generated"
+      },
+      "type": "folder"
+    }
+  ]
+}
