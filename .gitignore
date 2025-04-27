@@ -13,3 +13,4 @@ dist
 .nox
 .coverage
 venv
+hardware/*/generated
