@@ -1,0 +1,365 @@
+#!/usr/bin/env python
+
+import click
+import os
+import re
+import sys
+
+from collections import namedtuple
+from loguru import logger
+
+EXPECTED_HEADER = "\"#\",\"Qty\",\"Reference\",\"Value\",\"MPN\",\"Notes\",\"Footprint\""
+RE_ENTRY = re.compile(r"\"(?P<lineno>\d+)\",\"(?P<qty>\d+)\",\"(?P<reference>[^\"]+)\",\"(?P<value>[^\"]+)\",\"(?P<mpn>[^\"]+)\",\"(?P<notes>[^\"]*)\",\"(?P<footprint>[^\"]+)\"$")
+LineItem = namedtuple("LineItem", [
+  "qty",
+  "reference",
+  "value",
+  "mpn",
+  "notes",
+  "footprint",
+])
+
+"""
+A component is an orderable item uniquely
+identified by its MPN (Manufacturer Part Number).
+"""
+Component = namedtuple("Component", [
+  "mpn",
+])
+
+"""
+A designator refers to a specific instance of a component
+in the design.
+"""
+Designator = namedtuple("Designator", [
+  "name",
+  "component",
+  "footprint",
+  "value",''
+  "notes",
+])
+
+class BOM:
+  ComponentContext = namedtuple("ComponentContext", [
+    "qty",
+    "designators",
+    "values",
+    "footprints",
+    "notes",
+  ])
+
+  def __init__(self):
+    self._components = set()
+    self._footprints = set()
+    self._designators = set()
+
+    self._map_designators_by_component = {}
+    self._map_notes_by_component = {}
+    self._map_qty_by_component = {}
+    self._map_footprints_by_component = {}
+    self._map_values_by_component = {}
+
+  @property
+  def components(self):
+    """
+    Return a set of unique components in the BOM.
+    Return value includes additional information about
+    the component's context in the BOM.
+    """
+    return tuple(map(lambda c: self.component_info(c), self._components))
+  
+  @property
+  def footprints(self):
+    """
+    Return a set of unique footprints in the BOM.
+    The returned set is a copy of the internal set.
+    """
+    return set(self._footprints)
+  
+  @property
+  def designators(self):
+    """
+    Return a set of unique designators in the BOM.
+    The returned set is a copy of the internal set.
+    """
+    return set(self._designators)
+
+  def component_info(self, component):
+    """
+    Return a information for a given component.
+    """
+    if component not in self._components:
+      raise ValueError(f"Component {component.mpn} not found in BOM.")
+    
+    designators = tuple(self._map_designators_by_component.get(component, set()))
+    qty = self._map_qty_by_component.get(component, 0)
+    values = tuple(self._map_values_by_component.get(component, set()))
+    footprints = tuple(self._map_footprints_by_component.get(component, set()))
+    notes = tuple(self._map_notes_by_component.get(component, set()))
+
+    context = self.ComponentContext(
+      qty=qty,
+      designators=designators,
+      values=values,
+      footprints=footprints,
+      notes=notes,
+    )
+
+    return (component, context)
+
+  def add_designator(self, designator):
+    """
+    Add a designator to the BOM.
+    """
+    self._designators.add(designator)
+    self._components.add(designator.component)
+    self._footprints.add(designator.footprint)
+
+    try:
+      self._map_designators_by_component[designator.component].add(designator)
+    except KeyError:
+      self._map_designators_by_component[designator.component] = set()
+      self._map_designators_by_component[designator.component].add(designator)
+
+    try:
+      self._map_notes_by_component[designator.component].add(designator.notes)
+    except KeyError:
+      self._map_notes_by_component[designator.component] = set()
+      self._map_notes_by_component[designator.component].add(designator.notes)
+
+    try:
+      self._map_qty_by_component[designator.component] += 1
+    except KeyError:
+      self._map_qty_by_component[designator.component] = 1
+
+    try:
+      self._map_footprints_by_component[designator.component].add(designator.footprint)
+    except KeyError:
+      self._map_footprints_by_component[designator.component] = set()
+      self._map_footprints_by_component[designator.component].add(designator.footprint)
+
+    try:
+      self._map_values_by_component[designator.component].add(designator.value)
+    except KeyError:
+      self._map_values_by_component[designator.component] = set()
+      self._map_values_by_component[designator.component].add(designator.value)
+
+  def validate(self):
+    """
+    Validate the BOM.
+    """
+    for (component, context) in self.components:
+      if len(context.notes) > 1:
+        logger.warning(f"Component {component.mpn} has multiple notes: {context.notes}")
+
+      if len(context.footprints) > 1:
+        logger.warning(f"Component {component.mpn} has multiple footprints: {context.footprints}")
+
+      if len(context.values) > 1:
+        logger.warning(f"Component {component.mpn} has multiple values: {context.values}")
+
+class Datapoint:
+  """
+  A class to represent a data point in the BOM.
+  """
+  def __init__(self, name):
+    self._name = name
+  
+  @property
+  def name(self):
+    """
+    Return the name of the data point.
+    """
+    return self._name
+
+  def write(self, f, component, context):
+    """
+    Write the data point to the file.
+    """
+    raise NotImplementedError("Subclasses must implement this method.")
+
+class LineItemDatapoint(Datapoint):
+  """
+  Tracks the line item in the BOM.
+  """
+  def __init__(self):
+    super().__init__("line item")
+    self._count = 0
+
+  def write(self, f, component, context):
+    """
+    Write the line item to the file.
+    """
+    self._count += 1
+    f.write(f"{self._count}")
+
+class QtyDatapoint(Datapoint):
+  """
+  Tracks the quantity in the BOM.
+  """
+  def __init__(self):
+    super().__init__("qty")
+  
+  def write(self, f, component, context):
+    """
+    Write the quantity to the file.
+    """
+    f.write(f"{context.qty}")
+
+class MpnDatapoint(Datapoint):
+  """
+  Tracks the MPN in the BOM.
+  """
+  def __init__(self):
+    super().__init__("\"mpn\"")
+  
+  def write(self, f, component, context):
+    """
+    Write the MPN to the file.
+    """
+    f.write(f"\"{component.mpn}\"")
+
+class DesignatorsDatapoint(Datapoint):
+  """
+  Tracks the designators in the BOM.
+  """
+  def __init__(self):
+    super().__init__("designators")
+  
+  def write(self, f, component, context):
+    """
+    Write the designators to the file.
+    """
+    designators = [d.name for d in context.designators]
+    f.write(f"{';'.join(designators)}")
+
+class BOMEmitter:
+  """
+  A class to emit BOM files.
+  """
+  def __init__(self):
+    self._datapoints = [
+      LineItemDatapoint(),
+      QtyDatapoint(),
+      MpnDatapoint(),
+    ]
+  
+  def add_datapoint(self, datapoint):
+    """
+    Add a data point to the emitter.
+    """
+    self._datapoints.append(datapoint)
+  
+  def emit(self, bom, f):
+    """
+    Emit the BOM to the file.
+    """
+    for datapoint in self._datapoints:
+      f.write(f"{datapoint.name},")
+    f.write("\n")
+
+    for (component, context) in bom.components:
+      for (idx, datapoint) in enumerate(self._datapoints):
+        datapoint.write(f, component, context)
+        if idx < len(self._datapoints) - 1:
+          f.write(",")
+      f.write("\n")
+
+def load_bom(path):
+  """
+  Load a BOM file and return a BOM object.
+  """
+  bom = BOM()
+  with open(path, 'r') as file:
+    header = file.readline().strip()
+    if header != EXPECTED_HEADER:
+      raise ValueError(f"Invalid BOM format. Expected: {EXPECTED_HEADER}, got: {header}")
+    
+    for line in file:
+      line = line.strip()
+      if not line:
+        logger.warning("Skipping empty line")
+        continue
+
+      match = RE_ENTRY.match(line)
+      if match:
+        entry = match.groupdict()
+
+        qty = int(entry["qty"])
+        if qty != 1:
+          msg = f"Invalid quantity: {qty} for line: {line}"
+          logger.error(msg)
+          raise ValueError(msg)
+        
+        designator = Designator(
+          name=entry["reference"],
+          component=Component(entry["mpn"]),
+          footprint=entry["footprint"],
+          value=entry["value"],
+          notes=entry["notes"],
+        )
+
+        bom.add_designator(designator)
+
+      else:
+        msg = f"Invalid line format: {line}"
+        logger.error(msg)
+        raise ValueError(msg)
+
+  return bom
+
+@click.group()
+def cli():
+  """A command line tool for managing BOM files."""
+  pass
+
+@cli.command()
+@click.argument('path', type=click.Path(exists=True))
+@click.option('-v', '--verbose', count=True, help="Enable verbose output. Specify multiple times for more verbosity.")
+@click.option('--designators', is_flag=True, help="Include designators in the output.")
+def consolidate(
+  path,
+  verbose,
+  designators,
+):
+  """
+  Consolidate individual component BOM files into a single BOM file.
+  """
+  logger.remove()
+  match verbose:
+    case 0:
+      logger.add(sys.stderr, level="WARNING")
+    case 1:
+      logger.add(sys.stderr, level="INFO")
+    case 2:
+      logger.add(sys.stderr, level="DEBUG")
+    case _:
+      logger.add(sys.stderr, level="TRACE")
+
+  logger.info(f"Loading BOM from {path}")
+  try:
+    bom = load_bom(path)
+    logger.info("BOM loaded successfully.")
+  except Exception as e:
+    logger.error(f"Error loading BOM: {e}")
+    exit(1)
+  
+  logger.info("Validating BOM.")
+  try:
+    bom.validate()
+  except Exception as e:
+    logger.error(f"Error validating BOM: {e}")
+    exit(1)
+  logger.info("BOM validated successfully.")
+
+  emitter = BOMEmitter()
+  if designators:
+    emitter.add_datapoint(DesignatorsDatapoint())
+  
+  logger.info("Emitting BOM.")
+  with os.fdopen(sys.stdout.fileno(), 'w') as f:
+    emitter.emit(bom, f)
+  logger.info("BOM emitted successfully.")
+
+if __name__ == "__main__":
+  cli()

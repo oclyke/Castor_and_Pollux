@@ -12,3 +12,4 @@ dist
 .vscode
 .nox
 .coverage
+venv
