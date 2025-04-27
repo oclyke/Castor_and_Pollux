@@ -5785,7 +5785,7 @@
 				)
 			)
 		)
-		(property "MPN" "TL074CPW"
+		(property "MPN" "TL074CPW, TL074CPWR"
 			(at 146.05 93.98 0)
 			(effects
 				(font
@@ -6166,7 +6166,7 @@
 				)
 			)
 		)
-		(property "MPN" "TL074CPW"
+		(property "MPN" "TL074CPW, TL074CPWR"
 			(at 223.52 56.515 0)
 			(effects
 				(font
@@ -6671,7 +6671,7 @@
 				)
 			)
 		)
-		(property "MPN" "TL074CPW"
+		(property "MPN" "TL074CPW, TL074CPWR"
 			(at 126.365 153.035 0)
 			(effects
 				(font
@@ -7460,7 +7460,7 @@
 				)
 			)
 		)
-		(property "MPN" "TL074CPW"
+		(property "MPN" "TL074CPW, TL074CPWR"
 			(at 250.825 146.05 0)
 			(effects
 				(font
