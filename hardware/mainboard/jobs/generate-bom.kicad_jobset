@@ -7,7 +7,7 @@
         "bom_format_preset_name": "",
         "bom_preset_name": "",
         "description": "",
-        "exclude_dnp": true,
+        "exclude_dnp": false,
         "field_delimiter": ",",
         "fields_group_by": [],
         "fields_labels": [
@@ -58,7 +58,7 @@
   "outputs": [
     {
       "description": "",
-      "id": "59d0f95b-56c7-474f-bd6a-51ad84044935",
+      "id": "3479ba25-77c0-45ec-98b0-b85abd30b8a6",
       "only": [],
       "settings": {
         "output_path": "generated"
